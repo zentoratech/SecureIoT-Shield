@@ -1,17 +1,24 @@
 from flask import Flask, render_template, request, redirect, session, flash
 from flask_sqlalchemy import SQLAlchemy
+import os
 
 app = Flask(__name__)
 
 
-app.secret_key = "secureiot123"
+app.secret_key = os.environ.get("SECRET_KEY", "secureiot123")
 
-import os
 
-app.config["SQLALCHEMY_DATABASE_URI"] = os.environ.get("DATABASE_URL")
+database_url = os.environ.get("DATABASE_URL")
+
+
+if database_url and database_url.startswith("postgres://"):
+    database_url = database_url.replace("postgres://", "postgresql://", 1)
+
+app.config["SQLALCHEMY_DATABASE_URI"] = database_url
 app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
 
 db = SQLAlchemy(app)
+
 
 
 
@@ -36,10 +43,18 @@ class SecurityLog(db.Model):
     level = db.Column(db.String(50))
 
 
+# Create tables
+with app.app_context():
+    if database_url:
+        db.create_all()
+
+
+
 
 @app.route("/")
 def home():
     return render_template("index.html")
+
 
 
 
@@ -80,6 +95,9 @@ def register():
 
     return render_template("register.html")
 
+
+
+
 @app.route("/login", methods=["GET", "POST"])
 def login():
 
@@ -111,6 +129,10 @@ def login():
         flash("Invalid Email or Password")
 
     return render_template("login.html")
+
+
+
+
 @app.route("/dashboard")
 def dashboard():
 
@@ -119,9 +141,13 @@ def dashboard():
 
     device_count = Device.query.count()
 
-    online_count = Device.query.filter_by(status="Online").count()
+    online_count = Device.query.filter_by(
+        status="Online"
+    ).count()
 
-    offline_count = Device.query.filter_by(status="Offline").count()
+    offline_count = Device.query.filter_by(
+        status="Offline"
+    ).count()
 
     log_count = SecurityLog.query.count()
 
@@ -139,6 +165,9 @@ def dashboard():
         recent_logs=recent_logs
     )
 
+
+
+
 @app.route("/devices")
 def devices():
 
@@ -151,6 +180,7 @@ def devices():
         "devices.html",
         devices=devices
     )
+
 
 
 
@@ -188,6 +218,7 @@ def add_device():
 
 
 
+
 @app.route("/delete_device/<int:id>")
 def delete_device(id):
 
@@ -213,19 +244,21 @@ def delete_device(id):
 
 
 
+
 @app.route("/security_logs")
 def security_logs():
 
     if "user" not in session:
         return redirect("/login")
 
-    logs = SecurityLog.query.order_by(SecurityLog.id.desc()).all()
+    logs = SecurityLog.query.order_by(
+        SecurityLog.id.desc()
+    ).all()
 
     return render_template(
         "security_logs.html",
         logs=logs
     )
-
 
 
 
@@ -254,6 +287,7 @@ def threat_detection():
 
 
 
+
 @app.route("/logout")
 def logout():
 
@@ -265,15 +299,11 @@ def logout():
 
 
 
-if __name__ == "__main__":
-
-    with app.app_context():
-        db.create_all()
-
-    app.run(debug=True)
-
 @app.route("/about")
 def about():
     return render_template("about.html")
 
-    
+
+
+if __name__ == "__main__":
+    app.run(debug=True)
